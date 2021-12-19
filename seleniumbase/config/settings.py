@@ -96,10 +96,10 @@ RAISE_INVALID_PROXY_STRING_EXCEPTION = True
 # Default browser resolutions when opening new windows for tests.
 # (Headless resolutions take priority, and include all browsers.)
 # (Firefox starts maximized by default when running in GUI Mode.)
-CHROME_START_WIDTH = 1250
-CHROME_START_HEIGHT = 840
-HEADLESS_START_WIDTH = 1440
-HEADLESS_START_HEIGHT = 1880
+CHROME_START_WIDTH = 1680
+CHROME_START_HEIGHT = 1440
+HEADLESS_START_WIDTH = 1680
+HEADLESS_START_HEIGHT = 1440
 
 # #####>>>>>----- MasterQA SETTINGS -----<<<<<#####
 # ##### (Used when importing MasterQA as the parent class)
@@ -153,7 +153,7 @@ S3_SELENIUM_SECRET_KEY = "[S3 SECRET KEY]"
 # ENCRYPTION SETTINGS
 # (Used for string/password obfuscation)
 # (You should reset the Encryption Key for every clone of SeleniumBase)
-ENCRYPTION_KEY = "Pg^.l!8UdJ+Y7dMIe&fl*%!p9@ej]/#tL~3E4%6?"
+ENCRYPTION_KEY = "UkdFAoGBAP7y5P+UhpYfdO+JcuKSW8An83PTHZRQ73z3MTLvlnldWc"
 # These tokens are added to the beginning and end of obfuscated passwords.
 # Helps identify which strings/passwords have been obfuscated.
 OBFUSCATION_START_TOKEN = "$^*ENCRYPT="
