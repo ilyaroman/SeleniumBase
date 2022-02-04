@@ -2,28 +2,14 @@ import os
 import shutil
 import sys
 import time
-from selenium import webdriver
 from seleniumbase.config import settings
 from seleniumbase.core.style_sheet import style
 from seleniumbase.fixtures import page_actions
-from seleniumbase import drivers
 
 LATEST_REPORT_DIR = settings.LATEST_REPORT_DIR
 ARCHIVE_DIR = settings.REPORT_ARCHIVE_DIR
 HTML_REPORT = settings.HTML_REPORT
 RESULTS_TABLE = settings.RESULTS_TABLE
-DRIVER_DIR = os.path.dirname(os.path.realpath(drivers.__file__))
-PLATFORM = sys.platform
-LOCAL_CHROMEDRIVER = None
-LOCAL_GECKODRIVER = None
-if "darwin" in PLATFORM or "linux" in PLATFORM:
-    LOCAL_CHROMEDRIVER = DRIVER_DIR + "/chromedriver"
-    LOCAL_GECKODRIVER = DRIVER_DIR + "/geckodriver"
-    LOCAL_EDGEDRIVER = DRIVER_DIR + "/msedgedriver"
-elif "win32" in PLATFORM or "win64" in PLATFORM or "x64" in PLATFORM:
-    LOCAL_CHROMEDRIVER = DRIVER_DIR + "/chromedriver.exe"
-    LOCAL_GECKODRIVER = DRIVER_DIR + "/geckodriver.exe"
-    LOCAL_EDGEDRIVER = DRIVER_DIR + "/msedgedriver.exe"
 
 
 def get_timestamp():
@@ -49,8 +35,9 @@ def process_failures(test, test_count, browser_type, duration):
     bad_page_image = "failure_%s.png" % test_count
     bad_page_data = "failure_%s.txt" % test_count
     screenshot_path = "%s/%s" % (LATEST_REPORT_DIR, bad_page_image)
-    with open(screenshot_path, "wb") as file:
-        file.write(test._last_page_screenshot)
+    if hasattr(test, "_last_page_screenshot"):
+        with open(screenshot_path, "wb") as file:
+            file.write(test._last_page_screenshot)
     page_actions.save_test_failure_data(
         test.driver, bad_page_data, browser_type, folder=LATEST_REPORT_DIR
     )
@@ -69,6 +56,8 @@ def process_failures(test, test_count, browser_type, duration):
             exc_message = sys.last_value
         except Exception:
             exc_message = "(Unknown Exception)"
+    if not hasattr(test, "_last_page_url"):
+        test._last_page_url = "about:blank"
     return '"%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"' % (
         test_count,
         "FAILED!",
@@ -280,46 +269,11 @@ def build_report(
     )
     print("")
     if show_report:
-        browser = None
-        profile = webdriver.FirefoxProfile()
-        profile.set_preference("app.update.auto", False)
-        profile.set_preference("app.update.enabled", False)
-        profile.set_preference("browser.privatebrowsing.autostart", True)
-        if browser_type == "firefox":
-            if LOCAL_GECKODRIVER and os.path.exists(LOCAL_GECKODRIVER):
-                browser = webdriver.Firefox(
-                    firefox_profile=profile, executable_path=LOCAL_GECKODRIVER
-                )
-            else:
-                browser = webdriver.Firefox(firefox_profile=profile)
-        elif browser_type == "edge":
-            edge_options = webdriver.ChromeOptions()
-            edge_options.add_experimental_option(
-                "excludeSwitches", ["enable-automation", "enable-logging"]
-            )
-            edge_options.add_argument("--test-type")
-            edge_options.add_argument("--disable-infobars")
-            if LOCAL_CHROMEDRIVER and os.path.exists(LOCAL_EDGEDRIVER):
-                browser = webdriver.Chrome(
-                    executable_path=LOCAL_EDGEDRIVER, options=edge_options
-                )
-            else:
-                browser = webdriver.Chrome(options=edge_options)
-        else:
-            chrome_options = webdriver.ChromeOptions()
-            chrome_options.add_experimental_option(
-                "excludeSwitches", ["enable-automation", "enable-logging"]
-            )
-            chrome_options.add_argument("--test-type")
-            chrome_options.add_argument("--disable-infobars")
-            if LOCAL_CHROMEDRIVER and os.path.exists(LOCAL_CHROMEDRIVER):
-                browser = webdriver.Chrome(
-                    executable_path=LOCAL_CHROMEDRIVER, options=chrome_options
-                )
-            else:
-                browser = webdriver.Chrome(options=chrome_options)
-        browser.get("file://%s" % archived_results_file)
+        from seleniumbase import get_driver
+
+        driver = get_driver(browser_type, headless=False)
+        driver.get("file://%s" % archived_results_file)
         print("\n*** Close the html report window to continue. ***")
-        while len(browser.window_handles):
+        while len(driver.window_handles):
             time.sleep(0.1)
-        browser.quit()
+        driver.quit()

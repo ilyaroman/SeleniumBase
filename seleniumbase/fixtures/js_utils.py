@@ -212,6 +212,31 @@ def escape_quotes_if_needed(string):
     return string
 
 
+def is_in_frame(driver):
+    """
+    Returns True if the driver has switched to a frame.
+    Returns False if the driver was on default content.
+    """
+    in_basic_frame = driver.execute_script(
+        """
+        var frame = window.frameElement;
+        if (frame) {
+            return true;
+        }
+        else {
+            return false;
+        }
+        """
+    )
+    location_href = driver.execute_script("""return window.location.href;""")
+    in_external_frame = False
+    if driver.current_url != location_href:
+        in_external_frame = True
+    if in_basic_frame or in_external_frame:
+        return True
+    return False
+
+
 def safe_execute_script(driver, script):
     """When executing a script that contains a jQuery command,
     it's important that the jQuery library has been loaded first.
@@ -599,7 +624,7 @@ def set_messenger_theme(
         theme = "flat"
     if location == "default":
         location = "bottom_right"
-        if sb_config.mobile_emulator:
+        if hasattr(sb_config, "mobile_emulator") and sb_config.mobile_emulator:
             location = "top_center"
     if max_messages == "default":
         max_messages = "8"
@@ -682,7 +707,7 @@ def post_messenger_success_message(driver, message, msg_dur):
     try:
         theme = "flat"
         location = "bottom_right"
-        if sb_config.mobile_emulator:
+        if hasattr(sb_config, "mobile_emulator") and sb_config.mobile_emulator:
             location = "top_center"
         set_messenger_theme(driver, theme=theme, location=location)
         post_message(driver, message, msg_dur, style="success")

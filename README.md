@@ -149,7 +149,36 @@ pytest my_first_test.py --demo
 
 > (Chrome is the default browser if not specified with ``--browser``. On Linux, ``--headless`` is the default behavior.)
 
-<a href="https://github.com/seleniumbase/SeleniumBase/blob/master/examples/my_first_test.py"><img src="https://seleniumbase.io/cdn/gif/my_first_test_2.gif" alt="SeleniumBase Test" title="SeleniumBase Demo Mode" width="400" /></a>
+<a href="https://github.com/seleniumbase/SeleniumBase/blob/master/examples/my_first_test.py"><img src="https://seleniumbase.io/cdn/gif/swag_labs_4.gif" alt="SeleniumBase Test" title="SeleniumBase Test" width="400" /></a>
+
+<p align="left"><b>Here's the code for <a href="https://github.com/seleniumbase/SeleniumBase/blob/master/examples/my_first_test.py">my_first_test.py</a>:</b></p>
+
+```python
+from seleniumbase import BaseCase
+
+class MyTestClass(BaseCase):
+    def test_swag_labs(self):
+        self.open("https://www.saucedemo.com")
+        self.type("#user-name", "standard_user")
+        self.type("#password", "secret_sauce\n")
+        self.assert_element("#inventory_container")
+        self.assert_text("PRODUCTS", "span.title")
+        self.click('button[name*="backpack"]')
+        self.click("#shopping_cart_container a")
+        self.assert_text("YOUR CART", "span.title")
+        self.assert_text("Backpack", "div.cart_item")
+        self.click("button#checkout")
+        self.type("#first-name", "SeleniumBase")
+        self.type("#last-name", "Automation")
+        self.type("#postal-code", "77123")
+        self.click("input#continue")
+        self.assert_text("CHECKOUT: OVERVIEW")
+        self.assert_text("Backpack", "div.cart_item")
+        self.click("button#finish")
+        self.assert_exact_text("THANK YOU FOR YOUR ORDER", "h2")
+        self.assert_element('img[alt="Pony Express"]')
+        self.js_click("a#logout_sidebar_link")
+```
 
 * By default, **[CSS Selectors](https://www.w3schools.com/cssref/css_selectors.asp)** are used for finding page elements.
 * If you're new to CSS Selectors, games like [CSS Diner](http://flukeout.github.io/) can help you learn.
@@ -296,11 +325,12 @@ The code above will leave your browser window open in case there's a failure. (i
 --cap-file=FILE  # (The web browser's desired capabilities to use.)
 --cap-string=STRING  # (The web browser's desired capabilities to use.)
 --settings-file=FILE  # (Override default SeleniumBase settings.)
---env=ENV  # (Set a test environment. Use "self.env" to use this in tests.)
---data=DATA  # (Extra test data. Access with "self.data" in tests.)
---var1=DATA  # (Extra test data. Access with "self.var1" in tests.)
---var2=DATA  # (Extra test data. Access with "self.var2" in tests.)
---var3=DATA  # (Extra test data. Access with "self.var3" in tests.)
+--env=ENV  # (Set the test env. Access with "self.env" in tests.)
+--account=STR  # (Set account. Access with "self.account" in tests.)
+--data=STRING  # (Extra test data. Access with "self.data" in tests.)
+--var1=STRING  # (Extra test data. Access with "self.var1" in tests.)
+--var2=STRING  # (Extra test data. Access with "self.var2" in tests.)
+--var3=STRING  # (Extra test data. Access with "self.var3" in tests.)
 --user-data-dir=DIR  # (Set the Chrome user data directory to use.)
 --protocol=PROTOCOL  # (The Selenium Grid protocol: http|https.)
 --server=SERVER  # (The Selenium Grid server/IP used for tests.)
@@ -351,6 +381,7 @@ The code above will leave your browser window open in case there's a failure. (i
 --maximize-window  # (Start tests with the web browser window maximized.)
 --save-screenshot  # (Save a screenshot at the end of each test.)
 --visual-baseline  # (Set the visual baseline for Visual/Layout tests.)
+--external-pdf  # (Set Chrome "plugins.always_open_pdf_externally": True.)
 --timeout-multiplier=MULTIPLIER  # (Multiplies the default timeout values.)
 ```
 

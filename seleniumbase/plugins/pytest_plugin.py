@@ -25,10 +25,11 @@ def pytest_addoption(parser):
     --safari  (Shortcut for "--browser=safari".)
     --settings-file=FILE  (Override default SeleniumBase settings.)
     --env=ENV  (Set the test env. Access with "self.env" in tests.)
-    --data=DATA  (Extra test data. Access with "self.data" in tests.)
-    --var1=DATA  (Extra test data. Access with "self.var1" in tests.)
-    --var2=DATA  (Extra test data. Access with "self.var2" in tests.)
-    --var3=DATA  (Extra test data. Access with "self.var3" in tests.)
+    --account=STR  (Set account. Access with "self.account" in tests.)
+    --data=STRING  (Extra test data. Access with "self.data" in tests.)
+    --var1=STRING  (Extra test data. Access with "self.var1" in tests.)
+    --var2=STRING  (Extra test data. Access with "self.var2" in tests.)
+    --var3=STRING  (Extra test data. Access with "self.var3" in tests.)
     --user-data-dir=DIR  (Set the Chrome user data directory to use.)
     --protocol=PROTOCOL  (The Selenium Grid protocol: http|https.)
     --server=SERVER  (The Selenium Grid server/IP used for tests.)
@@ -81,6 +82,7 @@ def pytest_addoption(parser):
     --maximize  (Start tests with the web browser window maximized.)
     --save-screenshot  (Save a screenshot at the end of each test.)
     --visual-baseline  (Set the visual baseline for Visual/Layout tests.)
+    --external-pdf (Set Chromium "plugins.always_open_pdf_externally": True.)
     --timeout-multiplier=MULTIPLIER  (Multiplies the default timeout values.)
     """
     c1 = ""
@@ -170,12 +172,23 @@ def pytest_addoption(parser):
             constants.Environment.DEVELOP,
             constants.Environment.PRODUCTION,
             constants.Environment.MASTER,
+            constants.Environment.REMOTE,
             constants.Environment.LOCAL,
+            constants.Environment.ALPHA,
+            constants.Environment.BETA,
+            constants.Environment.MAIN,
             constants.Environment.TEST,
         ),
         default=constants.Environment.TEST,
-        help="""This option is used for setting the test env.
+        help="""This option sets a test env from a list of choices.
                 In tests, use "self.environment" to get the env.""",
+    )
+    parser.addoption(
+        "--account",
+        dest="account",
+        default=None,
+        help="""This option sets a test account string.
+                In tests, use "self.account" to get the value.""",
     )
     parser.addoption(
         "--data",
@@ -531,7 +544,7 @@ def pytest_addoption(parser):
                 When using "--xvfb", the "--headless" option
                 will no longer be enabled by default on Linux.
                 Default: False. (Linux-ONLY!)""",
-        )
+    )
     parser.addoption(
         "--locale_code",
         "--locale-code",
@@ -831,8 +844,8 @@ def pytest_addoption(parser):
         dest="crumbs",
         default=False,
         help="""The option to delete all cookies between tests
-             that reuse the same browser session. This option
-            is only needed when using "--reuse-session".""",
+                that reuse the same browser session. This option
+                is only needed when using "--reuse-session".""",
     )
     parser.addoption(
         "--maximize_window",
@@ -853,8 +866,8 @@ def pytest_addoption(parser):
         action="store_true",
         dest="save_screenshot",
         default=False,
-        help="""Take a screenshot on last page after the last step
-                of the test. (Added to the "latest_logs" folder.)""",
+        help="""Save a screenshot at the end of the test.
+                (Added to the "latest_logs/" folder.)""",
     )
     parser.addoption(
         "--visual_baseline",
@@ -866,6 +879,17 @@ def pytest_addoption(parser):
                 Automated Visual Testing with SeleniumBase.
                 When a test calls self.check_window(), it will
                 rebuild its files in the visual_baseline folder.""",
+    )
+    parser.addoption(
+        "--external_pdf",
+        "--external-pdf",
+        action="store_true",
+        dest="external_pdf",
+        default=False,
+        help="""This option sets the following on Chromium:
+                "plugins.always_open_pdf_externally": True,
+                which causes opened PDF URLs to download immediately,
+                instead of being displayed in the browser window.""",
     )
     parser.addoption(
         "--timeout_multiplier",
@@ -1035,6 +1059,7 @@ def pytest_configure(config):
     sb_config.browser = config.getoption("browser")
     if sb_config._browser_shortcut:
         sb_config.browser = sb_config._browser_shortcut
+    sb_config.account = config.getoption("account")
     sb_config.data = config.getoption("data")
     sb_config.var1 = config.getoption("var1")
     sb_config.var2 = config.getoption("var2")
@@ -1114,6 +1139,7 @@ def pytest_configure(config):
     sb_config.maximize_option = config.getoption("maximize_option")
     sb_config.save_screenshot = config.getoption("save_screenshot")
     sb_config.visual_baseline = config.getoption("visual_baseline")
+    sb_config.external_pdf = config.getoption("external_pdf")
     sb_config.timeout_multiplier = config.getoption("timeout_multiplier")
     sb_config._is_timeout_changed = False
     sb_config._SMALL_TIMEOUT = settings.SMALL_TIMEOUT

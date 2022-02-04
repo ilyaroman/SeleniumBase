@@ -44,6 +44,7 @@ from selenium.common.exceptions import (
     ElementClickInterceptedException as ECI_Exception,
     ElementNotInteractableException as ENI_Exception,
     MoveTargetOutOfBoundsException,
+    NoSuchElementException,
     NoSuchWindowException,
     StaleElementReferenceException,
     WebDriverException,
@@ -66,11 +67,13 @@ logging.getLogger("requests").setLevel(logging.ERROR)
 logging.getLogger("urllib3").setLevel(logging.ERROR)
 urllib3.disable_warnings()
 LOGGER.setLevel(logging.WARNING)
+python3 = True
 if sys.version_info[0] < 3:
+    python3 = False
     reload(sys)  # noqa: F821
     sys.setdefaultencoding("utf8")
 selenium4 = False
-if sys.version_info[0] == 3 and sys.version_info[1] >= 7:
+if sys.version_info >= (3, 7):
     selenium4 = True
 
 
@@ -144,9 +147,8 @@ class BaseCase(unittest.TestCase):
             pre_action_url = self.driver.current_url
         except Exception:
             pass
-        if type(url) is str:
-            url = url.strip()  # Remove leading and trailing whitespace
-        if (type(url) is not str) or not self.__looks_like_a_page_url(url):
+        url = str(url).strip()  # Remove leading and trailing whitespace
+        if not self.__looks_like_a_page_url(url):
             # url should start with one of the following:
             # "http:", "https:", "://", "data:", "file:",
             # "about:", "chrome:", "opera:", or "edge:".
@@ -224,7 +226,7 @@ class BaseCase(unittest.TestCase):
                 self.click_partial_link_text(selector, timeout=timeout)
                 return
         if self.__is_shadow_selector(selector):
-            self.__shadow_click(selector)
+            self.__shadow_click(selector, timeout)
             return
         element = page_actions.wait_for_element_visible(
             self.driver, selector, by, timeout=timeout
@@ -363,6 +365,8 @@ class BaseCase(unittest.TestCase):
             self.wait_for_angularjs(timeout=settings.MINI_TIMEOUT)
             if self.driver.current_url != pre_action_url:
                 self.__ad_block_as_needed()
+        if self.browser == "safari":
+            time.sleep(0.02)
         if self.demo_mode:
             if self.driver.current_url != pre_action_url:
                 self.__demo_mode_pause_if_active()
@@ -499,7 +503,7 @@ class BaseCase(unittest.TestCase):
             timeout = self.__get_new_timeout(timeout)
         selector, by = self.__recalculate_selector(selector, by)
         if self.__is_shadow_selector(selector):
-            self.__shadow_type(selector, text)
+            self.__shadow_type(selector, text, timeout)
             return
         element = self.wait_for_element_visible(
             selector, by=by, timeout=timeout
@@ -576,7 +580,7 @@ class BaseCase(unittest.TestCase):
             timeout = self.__get_new_timeout(timeout)
         selector, by = self.__recalculate_selector(selector, by)
         if self.__is_shadow_selector(selector):
-            self.__shadow_type(selector, text, clear_first=False)
+            self.__shadow_type(selector, text, timeout, clear_first=False)
             return
         element = self.wait_for_element_visible(
             selector, by=by, timeout=timeout
@@ -674,7 +678,7 @@ class BaseCase(unittest.TestCase):
             timeout = self.__get_new_timeout(timeout)
         selector, by = self.__recalculate_selector(selector, by)
         if self.__is_shadow_selector(selector):
-            self.__shadow_clear(selector)
+            self.__shadow_clear(selector, timeout)
             return
         element = self.wait_for_element_visible(
             selector, by=by, timeout=timeout
@@ -742,7 +746,7 @@ class BaseCase(unittest.TestCase):
     def get_current_url(self):
         self.__check_scope()
         current_url = self.driver.current_url
-        if "%" in current_url and sys.version_info[0] >= 3:
+        if "%" in current_url and python3:
             try:
                 from urllib.parse import unquote
 
@@ -833,22 +837,30 @@ class BaseCase(unittest.TestCase):
     def is_element_present(self, selector, by=By.CSS_SELECTOR):
         self.wait_for_ready_state_complete()
         selector, by = self.__recalculate_selector(selector, by)
+        if self.__is_shadow_selector(selector):
+            return self.__is_shadow_element_present(selector)
         return page_actions.is_element_present(self.driver, selector, by)
 
     def is_element_visible(self, selector, by=By.CSS_SELECTOR):
         self.wait_for_ready_state_complete()
         selector, by = self.__recalculate_selector(selector, by)
+        if self.__is_shadow_selector(selector):
+            return self.__is_shadow_element_visible(selector)
         return page_actions.is_element_visible(self.driver, selector, by)
 
     def is_element_enabled(self, selector, by=By.CSS_SELECTOR):
         self.wait_for_ready_state_complete()
         selector, by = self.__recalculate_selector(selector, by)
+        if self.__is_shadow_selector(selector):
+            return self.__is_shadow_element_enabled(selector)
         return page_actions.is_element_enabled(self.driver, selector, by)
 
     def is_text_visible(self, text, selector="html", by=By.CSS_SELECTOR):
         self.wait_for_ready_state_complete()
         time.sleep(0.01)
         selector, by = self.__recalculate_selector(selector, by)
+        if self.__is_shadow_selector(selector):
+            return self.__is_shadow_text_visible(text, selector)
         return page_actions.is_text_visible(self.driver, text, selector, by)
 
     def is_attribute_present(
@@ -859,6 +871,10 @@ class BaseCase(unittest.TestCase):
         self.wait_for_ready_state_complete()
         time.sleep(0.01)
         selector, by = self.__recalculate_selector(selector, by)
+        if self.__is_shadow_selector(selector):
+            return self.__is_shadow_attribute_present(
+                selector, attribute, value
+            )
         return page_actions.is_attribute_present(
             self.driver, selector, attribute, value, by
         )
@@ -1224,7 +1240,7 @@ class BaseCase(unittest.TestCase):
             timeout = self.__get_new_timeout(timeout)
         selector, by = self.__recalculate_selector(selector, by)
         if self.__is_shadow_selector(selector):
-            return self.__get_shadow_text(selector)
+            return self.__get_shadow_text(selector, timeout)
         self.wait_for_ready_state_complete()
         time.sleep(0.01)
         element = page_actions.wait_for_element_visible(
@@ -1232,6 +1248,8 @@ class BaseCase(unittest.TestCase):
         )
         try:
             element_text = element.text
+            if self.browser == "safari":
+                element_text = element.get_attribute("innerText")
         except (StaleElementReferenceException, ENI_Exception):
             self.wait_for_ready_state_complete()
             time.sleep(0.14)
@@ -1239,6 +1257,8 @@ class BaseCase(unittest.TestCase):
                 self.driver, selector, by, timeout
             )
             element_text = element.text
+            if self.browser == "safari":
+                element_text = element.get_attribute("innerText")
         return element_text
 
     def get_attribute(
@@ -1258,6 +1278,10 @@ class BaseCase(unittest.TestCase):
         selector, by = self.__recalculate_selector(selector, by)
         self.wait_for_ready_state_complete()
         time.sleep(0.01)
+        if self.__is_shadow_selector(selector):
+            return self.__get_shadow_attribute(
+                selector, attribute, timeout=timeout
+            )
         element = page_actions.wait_for_element_present(
             self.driver, selector, by, timeout
         )
@@ -1401,6 +1425,50 @@ class BaseCase(unittest.TestCase):
             self.execute_script(script)
         except Exception:
             pass
+
+    def get_property(
+        self, selector, property, by=By.CSS_SELECTOR, timeout=None
+    ):
+        """Returns the property value of an element.
+        This is not the same as self.get_property_value(), which returns
+        the value of an element's computed style using a different algorithm.
+        If no result is found, an empty string (instead of None) is returned.
+        Example:
+            html_text = self.get_property(SELECTOR, "textContent")
+        """
+        self.__check_scope()
+        if not timeout:
+            timeout = settings.SMALL_TIMEOUT
+        if self.timeout_multiplier and timeout == settings.SMALL_TIMEOUT:
+            timeout = self.__get_new_timeout(timeout)
+        selector, by = self.__recalculate_selector(selector, by)
+        self.wait_for_ready_state_complete()
+        time.sleep(0.01)
+        element = page_actions.wait_for_element_present(
+            self.driver, selector, by, timeout
+        )
+        try:
+            property_value = element.get_property(property)
+        except (StaleElementReferenceException, ENI_Exception):
+            self.wait_for_ready_state_complete()
+            time.sleep(0.14)
+            element = page_actions.wait_for_element_present(
+                self.driver, selector, by, timeout
+            )
+            property_value = element.get_property(property)
+        if not property_value:
+            return ""
+        return property_value
+
+    def get_text_content(self, selector, by=By.CSS_SELECTOR, timeout=None):
+        """Returns the text that appears in the HTML for an element.
+        This is different from "self.get_text(selector, by=By.CSS_SELECTOR)"
+        because that only returns the visible text on a page for an element,
+        rather than the HTML text that's being returned from this method."""
+        self.__check_scope()
+        return self.get_property(
+            selector, property="textContent", by=by, timeout=timeout
+        )
 
     def get_property_value(
         self, selector, property, by=By.CSS_SELECTOR, timeout=None
@@ -1813,13 +1881,13 @@ class BaseCase(unittest.TestCase):
         try:
             return page_actions.hover_on_element(self.driver, selector)
         except WebDriverException as e:
-            driver_capabilities = self.driver.__dict__["capabilities"]
+            driver_capabilities = self.driver.capabilities
             if "version" in driver_capabilities:
                 chrome_version = driver_capabilities["version"]
             else:
                 chrome_version = driver_capabilities["browserVersion"]
             major_chrome_version = chrome_version.split(".")[0]
-            chrome_dict = self.driver.__dict__["capabilities"]["chrome"]
+            chrome_dict = self.driver.capabilities["chrome"]
             chromedriver_version = chrome_dict["chromedriverVersion"]
             chromedriver_version = chromedriver_version.split(" ")[0]
             major_chromedriver_version = chromedriver_version.split(".")[0]
@@ -2386,6 +2454,8 @@ class BaseCase(unittest.TestCase):
     def execute_script(self, script, *args, **kwargs):
         self.__check_scope()
         self.__check_browser()
+        if not python3:
+            script = unicode(script.decode('latin-1'))  # noqa: F821
         return self.driver.execute_script(script, *args, **kwargs)
 
     def execute_async_script(self, script, timeout=None):
@@ -2520,6 +2590,8 @@ class BaseCase(unittest.TestCase):
             url = self.execute_script(
                 """return document.querySelector('%s').src;""" % frame
             )
+            if not python3:
+                url = str(url)
             if url and len(url) > 0:
                 if ("http:") in url or ("https:") in url or ("file:") in url:
                     pass
@@ -2699,6 +2771,7 @@ class BaseCase(unittest.TestCase):
         user_data_dir=None,
         extension_zip=None,
         extension_dir=None,
+        external_pdf=None,
         is_mobile=None,
         d_width=None,
         d_height=None,
@@ -2740,6 +2813,7 @@ class BaseCase(unittest.TestCase):
         user_data_dir - Chrome's User Data Directory to use (Chrome-only)
         extension_zip - A Chrome Extension ZIP file to use (Chrome-only)
         extension_dir - A Chrome Extension folder to use (Chrome-only)
+        external_pdf - "plugins.always_open_pdf_externally": True. (Chrome)
         is_mobile - the option to use the mobile emulator (Chrome-only)
         d_width - the device width of the mobile emulator (Chrome-only)
         d_height - the device height of the mobile emulator (Chrome-only)
@@ -2836,6 +2910,8 @@ class BaseCase(unittest.TestCase):
             extension_zip = self.extension_zip
         if extension_dir is None:
             extension_dir = self.extension_dir
+        if external_pdf is None:
+            external_pdf = self.external_pdf
         test_id = self.__get_test_id()
         if cap_file is None:
             cap_file = self.cap_file
@@ -2891,6 +2967,7 @@ class BaseCase(unittest.TestCase):
             user_data_dir=user_data_dir,
             extension_zip=extension_zip,
             extension_dir=extension_dir,
+            external_pdf=external_pdf,
             test_id=test_id,
             mobile_emulator=is_mobile,
             device_width=d_width,
@@ -2981,6 +3058,7 @@ class BaseCase(unittest.TestCase):
         self.driver = driver
         if self.driver in self.__driver_browser_map:
             self.browser = self.__driver_browser_map[self.driver]
+        self.bring_active_window_to_front()
 
     def switch_to_default_driver(self):
         """ Sets self.driver to the default/original driver. """
@@ -2988,6 +3066,7 @@ class BaseCase(unittest.TestCase):
         self.driver = self._default_driver
         if self.driver in self.__driver_browser_map:
             self.browser = self.__driver_browser_map[self.driver]
+        self.bring_active_window_to_front()
 
     def save_screenshot(
         self, name, folder=None, selector=None, by=By.CSS_SELECTOR
@@ -3178,7 +3257,10 @@ class BaseCase(unittest.TestCase):
 
     def sleep(self, seconds):
         self.__check_scope()
-        if not sb_config.time_limit:
+        if (
+            not hasattr(sb_config, "time_limit")
+            or (hasattr(sb_config, "time_limit") and not sb_config.time_limit)
+        ):
             time.sleep(seconds)
         elif seconds < 0.4:
             shared_utils.check_if_time_limit_exceeded()
@@ -3327,16 +3409,16 @@ class BaseCase(unittest.TestCase):
             if (
                 (srt_actions[n][0] == "begin" or srt_actions[n][0] == "_url_")
                 and n > 0
-                and srt_actions[n-1][0] == "sk_op"
+                and srt_actions[n - 1][0] == "sk_op"
             ):
                 srt_actions[n][0] = "_skip"
         for n in range(len(srt_actions)):
             if (
                 (srt_actions[n][0] == "begin" or srt_actions[n][0] == "_url_")
                 and n > 1
-                and srt_actions[n-1][0] == "_skip"
-                and srt_actions[n-2][0] == "sk_op"
-                and srt_actions[n][2] == srt_actions[n-1][2]
+                and srt_actions[n - 1][0] == "_skip"
+                and srt_actions[n - 2][0] == "sk_op"
+                and srt_actions[n][2] == srt_actions[n - 1][2]
             ):
                 srt_actions[n][0] = "_skip"
         for n in range(len(srt_actions)):
@@ -3344,17 +3426,17 @@ class BaseCase(unittest.TestCase):
                 (srt_actions[n][0] == "begin" or srt_actions[n][0] == "_url_")
                 and n > 0
                 and (
-                    srt_actions[n-1][0] == "click"
-                    or srt_actions[n-1][0] == "js_cl"
-                    or srt_actions[n-1][0] == "js_ca"
+                    srt_actions[n - 1][0] == "click"
+                    or srt_actions[n - 1][0] == "js_cl"
+                    or srt_actions[n - 1][0] == "js_ca"
                 )
             ):
-                url1 = srt_actions[n-1][2]
+                url1 = srt_actions[n - 1][2]
                 if (
-                    srt_actions[n-1][0] == "js_cl"
-                    or srt_actions[n-1][0] == "js_ca"
+                    srt_actions[n - 1][0] == "js_cl"
+                    or srt_actions[n - 1][0] == "js_ca"
                 ):
-                    url1 = srt_actions[n-1][2][0]
+                    url1 = srt_actions[n - 1][2][0]
                 if url1.endswith("/#/"):
                     url1 = url1[:-3]
                 elif url1.endswith("/"):
@@ -3367,9 +3449,10 @@ class BaseCase(unittest.TestCase):
                 if (
                     url1 == url2
                     or url1 == url2.replace("www.", "")
-                    or (len(url1) > 0 and url2.startswith(url1)
+                    or (len(url1) > 0
+                        and (url2.startswith(url1) or "?search" in url1)
                         and (int(srt_actions[n][3]) - int(
-                            srt_actions[n-1][3]) < 6500))
+                            srt_actions[n - 1][3]) < 6500))
                 ):
                     srt_actions[n][0] = "f_url"
         for n in range(len(srt_actions)):
@@ -3377,11 +3460,11 @@ class BaseCase(unittest.TestCase):
                 (srt_actions[n][0] == "begin" or srt_actions[n][0] == "_url_")
                 and n > 0
                 and (
-                    srt_actions[n-1][0] == "begin"
-                    or srt_actions[n-1][0] == "_url_"
+                    srt_actions[n - 1][0] == "begin"
+                    or srt_actions[n - 1][0] == "_url_"
                 )
             ):
-                url1 = srt_actions[n-1][2]
+                url1 = srt_actions[n - 1][2]
                 if url1.endswith("/#/"):
                     url1 = url1[:-3]
                 elif url1.endswith("/"):
@@ -3392,55 +3475,57 @@ class BaseCase(unittest.TestCase):
                 elif url2.endswith("/"):
                     url2 = url2[:-1]
                 if url1.replace("www.", "") == url2.replace("www.", ""):
-                    srt_actions[n-1][0] = "_skip"
+                    srt_actions[n - 1][0] = "_skip"
                 elif url2.startswith(url1):
                     srt_actions[n][0] = "f_url"
         for n in range(len(srt_actions)):
             if (
                 srt_actions[n][0] == "input"
                 and n > 0
-                and srt_actions[n-1][0] == "input"
-                and srt_actions[n-1][2] == ""
+                and srt_actions[n - 1][0] == "input"
+                and srt_actions[n - 1][2] == ""
             ):
-                srt_actions[n-1][0] = "_skip"
+                srt_actions[n - 1][0] = "_skip"
         for n in range(len(srt_actions)):
             if (
                 (srt_actions[n][0] == "begin" or srt_actions[n][0] == "_url_")
                 and n > 0
                 and (
-                    srt_actions[n-1][0] == "click"
-                    or srt_actions[n-1][0] == "js_cl"
-                    or srt_actions[n-1][0] == "js_ca"
-                    or srt_actions[n-1][0] == "input"
+                    srt_actions[n - 1][0] == "click"
+                    or srt_actions[n - 1][0] == "js_cl"
+                    or srt_actions[n - 1][0] == "js_ca"
+                    or srt_actions[n - 1][0] == "input"
                 )
-                and (int(srt_actions[n][3]) - int(srt_actions[n-1][3]) < 6500)
+                and (
+                    int(srt_actions[n][3]) - int(srt_actions[n - 1][3]) < 6500
+                )
             ):
                 if (
-                    srt_actions[n-1][0] == "click"
-                    or srt_actions[n-1][0] == "js_cl"
-                    or srt_actions[n-1][0] == "js_ca"
+                    srt_actions[n - 1][0] == "click"
+                    or srt_actions[n - 1][0] == "js_cl"
+                    or srt_actions[n - 1][0] == "js_ca"
                 ):
                     if (
-                        srt_actions[n-1][1].startswith("input")
-                        or srt_actions[n-1][1].startswith("button")
+                        srt_actions[n - 1][1].startswith("input")
+                        or srt_actions[n - 1][1].startswith("button")
                     ):
                         srt_actions[n][0] = "f_url"
-                elif srt_actions[n-1][0] == "input":
-                    if srt_actions[n-1][2].endswith("\n"):
+                elif srt_actions[n - 1][0] == "input":
+                    if srt_actions[n - 1][2].endswith("\n"):
                         srt_actions[n][0] = "f_url"
         for n in range(len(srt_actions)):
             if (
                 srt_actions[n][0] == "cho_f"
                 and n > 0
-                and srt_actions[n-1][0] == "chfil"
+                and srt_actions[n - 1][0] == "chfil"
             ):
-                srt_actions[n-1][0] = "_skip"
-                srt_actions[n][2] = srt_actions[n-1][1][1]
+                srt_actions[n - 1][0] = "_skip"
+                srt_actions[n][2] = srt_actions[n - 1][1][1]
         for n in range(len(srt_actions)):
             if (
                 srt_actions[n][0] == "input"
                 and n > 0
-                and srt_actions[n-1][0] == "e_mfa"
+                and srt_actions[n - 1][0] == "e_mfa"
             ):
                 srt_actions[n][0] = "_skip"
         for n in range(len(srt_actions)):
@@ -3448,8 +3533,8 @@ class BaseCase(unittest.TestCase):
                 (srt_actions[n][0] == "begin" or srt_actions[n][0] == "_url_")
                 and n > 0
                 and (
-                    srt_actions[n-1][0] == "submi"
-                    or srt_actions[n-1][0] == "e_mfa"
+                    srt_actions[n - 1][0] == "submi"
+                    or srt_actions[n - 1][0] == "e_mfa"
                 )
             ):
                 srt_actions[n][0] = "f_url"
@@ -3471,13 +3556,13 @@ class BaseCase(unittest.TestCase):
             if (
                 srt_actions[n][0] == "click"
                 and n > 0
-                and srt_actions[n-1][0] == "ho_cl"
-                and srt_actions[n-1][2] in origins
+                and srt_actions[n - 1][0] == "ho_cl"
+                and srt_actions[n - 1][2] in origins
             ):
-                srt_actions[n-1][0] = "_skip"
+                srt_actions[n - 1][0] = "_skip"
                 srt_actions[n][0] = "h_clk"
-                srt_actions[n][1] = srt_actions[n-1][1][0]
-                srt_actions[n][2] = srt_actions[n-1][1][1]
+                srt_actions[n][1] = srt_actions[n - 1][1][0]
+                srt_actions[n][2] = srt_actions[n - 1][1][1]
         for n in range(len(srt_actions)):
             if srt_actions[n][0] == "chfil" and srt_actions[n][2] in origins:
                 srt_actions[n][0] = "cho_f"
@@ -3487,9 +3572,9 @@ class BaseCase(unittest.TestCase):
             if (
                 srt_actions[n][0] == "sh_fc"
                 and n > 0
-                and srt_actions[n-1][0] == "sh_fc"
+                and srt_actions[n - 1][0] == "sh_fc"
             ):
-                srt_actions[n-1][0] = "_skip"
+                srt_actions[n - 1][0] = "_skip"
         ext_actions = []
         ext_actions.append("_url_")
         ext_actions.append("js_cl")
@@ -3538,15 +3623,15 @@ class BaseCase(unittest.TestCase):
             if (
                 srt_actions[n][0] == "input"
                 and n > 0
-                and srt_actions[n-1][0] == "js_ty"
-                and srt_actions[n][2] == srt_actions[n-1][2]
+                and srt_actions[n - 1][0] == "js_ty"
+                and srt_actions[n][2] == srt_actions[n - 1][2]
             ):
                 srt_actions[n][0] = "_skip"
         for n in range(len(srt_actions)):
             cleaned_actions.append(srt_actions[n])
         for action in srt_actions:
             if action[0] == "begin" or action[0] == "_url_":
-                if "%" in action[2] and sys.version_info[0] >= 3:
+                if "%" in action[2] and python3:
                     try:
                         from urllib.parse import unquote
 
@@ -3555,7 +3640,7 @@ class BaseCase(unittest.TestCase):
                         pass
                 sb_actions.append('self.open("%s")' % action[2])
             elif action[0] == "f_url":
-                if "%" in action[2] and sys.version_info[0] >= 3:
+                if "%" in action[2] and python3:
                     try:
                         from urllib.parse import unquote
 
@@ -3884,6 +3969,21 @@ class BaseCase(unittest.TestCase):
     def __escape_quotes_if_needed(self, string):
         return js_utils.escape_quotes_if_needed(string)
 
+    def __is_in_frame(self):
+        return js_utils.is_in_frame(self.driver)
+
+    def bring_active_window_to_front(self):
+        """Brings the active browser window to the front.
+        This is useful when multiple drivers are being used."""
+        self.__check_scope()
+        try:
+            if not self.__is_in_frame():
+                # Only bring the window to the front if not in a frame
+                # because the driver resets itself to default content.
+                self.switch_to_window(self.driver.current_window_handle)
+        except Exception:
+            pass
+
     def bring_to_front(self, selector, by=By.CSS_SELECTOR):
         """Updates the Z-index of a page element to bring it into view.
         Useful when getting a WebDriverException, such as the one below:
@@ -3918,6 +4018,17 @@ class BaseCase(unittest.TestCase):
     def highlight_update_text(
         self, selector, text, by=By.CSS_SELECTOR, loops=3, scroll=True
     ):
+        """Highlights the element and then types text into the field."""
+        self.__check_scope()
+        if not self.demo_mode:
+            self.highlight(selector, by=by, loops=loops, scroll=scroll)
+        self.update_text(selector, text, by=by)
+
+    def highlight_type(
+        self, selector, text, by=By.CSS_SELECTOR, loops=3, scroll=True
+    ):
+        """Same as self.highlight_update_text()
+        As above, highlights the element and then types text into the field."""
         self.__check_scope()
         if not self.demo_mode:
             self.highlight(selector, by=by, loops=loops, scroll=scroll)
@@ -4758,14 +4869,26 @@ class BaseCase(unittest.TestCase):
         if type(abs_path) is int or type(abs_path) is float:
             abs_path = str(abs_path)
         try:
-            element.send_keys(abs_path)
+            if self.browser == "safari":
+                try:
+                    element.send_keys(abs_path)
+                except NoSuchElementException:
+                    pass  # May get this error on Safari even if upload works.
+            else:
+                element.send_keys(abs_path)
         except (StaleElementReferenceException, ENI_Exception):
             self.wait_for_ready_state_complete()
             time.sleep(0.16)
             element = self.wait_for_element_present(
                 selector, by=by, timeout=timeout
             )
-            element.send_keys(abs_path)
+            if self.browser == "safari":
+                try:
+                    element.send_keys(abs_path)
+                except NoSuchElementException:
+                    pass  # May get this error on Safari even if upload works.
+            else:
+                element.send_keys(abs_path)
         if self.demo_mode:
             if self.driver.current_url != pre_action_url:
                 self.__demo_mode_pause_if_active()
@@ -5764,7 +5887,7 @@ class BaseCase(unittest.TestCase):
                 self.__passed_then_skipped = True
             self.__will_be_skipped = True
             sb_config._results[test_id] = "Skipped"
-        if self.with_db_reporting:
+        if hasattr(self, "with_db_reporting") and self.with_db_reporting:
             if self.is_pytest:
                 self.__skip_reason = reason
             else:
@@ -5777,7 +5900,9 @@ class BaseCase(unittest.TestCase):
         browser = self.browser
         if not reason:
             reason = "No skip reason given"
-        log_helper.log_skipped_test_data(self, test_logpath, browser, reason)
+        log_helper.log_skipped_test_data(
+            self, test_logpath, self.driver, browser, reason
+        )
         # Finally skip the test for real
         self.skipTest(reason)
 
@@ -5785,7 +5910,9 @@ class BaseCase(unittest.TestCase):
 
     # Shadow DOM / Shadow-root methods
 
-    def __get_shadow_element(self, selector, timeout=None):
+    def __get_shadow_element(
+        self, selector, timeout=None, must_be_visible=False
+    ):
         self.wait_for_ready_state_complete()
         if timeout is None:
             timeout = settings.SMALL_TIMEOUT
@@ -5801,6 +5928,7 @@ class BaseCase(unittest.TestCase):
         selectors = selector.split("::shadow ")
         element = self.get_element(selectors[0])
         selector_chain = selectors[0]
+        is_present = False
         for selector_part in selectors[1:]:
             shadow_root = None
             if (
@@ -5817,14 +5945,21 @@ class BaseCase(unittest.TestCase):
                         chromedriver_version = chrome_dr_version.split(" ")[0]
                         major_c_dr_version = chromedriver_version.split(".")[0]
                         if int(major_c_dr_version) < 96:
+                            upgrade_to = "latest"
+                            major_browser_version = (
+                                self.__get_major_browser_version()
+                            )
+                            if int(major_browser_version) >= 96:
+                                upgrade_to = str(major_browser_version)
                             message = (
-                                "You need to upgrade to a newer version of "
-                                "chromedriver to interact with Shadow root "
-                                "elements!\n(Current driver version is: %s)"
+                                "You need to upgrade to a newer\n"
+                                "version of chromedriver to interact\n"
+                                "with Shadow root elements!\n"
+                                "(Current driver version is: %s)"
                                 "\n(Minimum driver version is: 96.*)"
-                                "\nTo upgrade: "
-                                '"seleniumbase install chromedriver latest"'
-                                % chromedriver_version
+                                "\nTo upgrade, run this:"
+                                '\n"seleniumbase install chromedriver %s"'
+                                % (chromedriver_version, upgrade_to)
                             )
                             raise Exception(message)
                     if timeout != 0.1:  # Skip wait for special 0.1 (See above)
@@ -5841,9 +5976,15 @@ class BaseCase(unittest.TestCase):
                 # Firefox users will likely hit:
                 #     https://github.com/mozilla/geckodriver/issues/1711
                 #     When Firefox adds support, switch to element.shadow_root
-                shadow_root = self.execute_script(
-                    "return arguments[0].shadowRoot", element
-                )
+                try:
+                    shadow_root = self.execute_script(
+                        "return arguments[0].shadowRoot", element
+                    )
+                except Exception:
+                    time.sleep(2)
+                    shadow_root = self.execute_script(
+                        "return arguments[0].shadowRoot", element
+                    )
             if timeout == 0.1 and not shadow_root:
                 raise Exception(
                     "Element {%s} has no shadow root!" % selector_chain
@@ -5865,8 +6006,32 @@ class BaseCase(unittest.TestCase):
                     and self.is_chromium()
                     and int(self.__get_major_browser_version()) >= 96
                 ):
-                    element = shadow_root.find_element(
-                        By.CSS_SELECTOR, value=selector_part)
+                    if timeout == 0.1:
+                        element = shadow_root.find_element(
+                            By.CSS_SELECTOR, value=selector_part)
+                    else:
+                        found = False
+                        for i in range(int(timeout) * 4):
+                            try:
+                                element = shadow_root.find_element(
+                                    By.CSS_SELECTOR, value=selector_part)
+                                is_present = True
+                                if must_be_visible:
+                                    if not element.is_displayed():
+                                        raise Exception(
+                                            "Shadow Root element not visible!")
+                                found = True
+                                break
+                            except Exception:
+                                time.sleep(0.2)
+                                continue
+                        if not found:
+                            element = shadow_root.find_element(
+                                By.CSS_SELECTOR, value=selector_part)
+                            is_present = True
+                            if must_be_visible and not element.is_displayed():
+                                raise Exception(
+                                    "Shadow Root element not visible!")
                 else:
                     element = page_actions.wait_for_element_present(
                         shadow_root,
@@ -5875,11 +6040,16 @@ class BaseCase(unittest.TestCase):
                         timeout=timeout,
                     )
             except Exception:
+                error = "not present"
+                the_exception = "NoSuchElementException"
+                if must_be_visible and is_present:
+                    error = "not visible"
+                    the_exception = "ElementNotVisibleException"
                 msg = (
-                    "Shadow DOM Element {%s} was not present after %s seconds!"
-                    % (selector_chain, timeout)
+                    "Shadow DOM Element {%s} was %s after %s seconds!"
+                    % (selector_chain, error, timeout)
                 )
-                page_actions.timeout_exception("NoSuchElementException", msg)
+                page_actions.timeout_exception(the_exception, msg)
         return element
 
     def __fail_if_invalid_shadow_selector_usage(self, selector):
@@ -5896,12 +6066,16 @@ class BaseCase(unittest.TestCase):
             return True
         return False
 
-    def __shadow_click(self, selector):
-        element = self.__get_shadow_element(selector)
+    def __shadow_click(self, selector, timeout):
+        element = self.__get_shadow_element(
+            selector, timeout=timeout, must_be_visible=True
+        )
         element.click()
 
-    def __shadow_type(self, selector, text, clear_first=True):
-        element = self.__get_shadow_element(selector)
+    def __shadow_type(self, selector, text, timeout, clear_first=True):
+        element = self.__get_shadow_element(
+            selector, timeout=timeout, must_be_visible=True
+        )
         if clear_first:
             try:
                 element.clear()
@@ -5921,8 +6095,10 @@ class BaseCase(unittest.TestCase):
             if settings.WAIT_FOR_RSC_ON_PAGE_LOADS:
                 self.wait_for_ready_state_complete()
 
-    def __shadow_clear(self, selector):
-        element = self.__get_shadow_element(selector)
+    def __shadow_clear(self, selector, timeout):
+        element = self.__get_shadow_element(
+            selector, timeout=timeout, must_be_visible=True
+        )
         try:
             element.clear()
             backspaces = Keys.BACK_SPACE * 42  # Autofill Defense
@@ -5930,16 +6106,27 @@ class BaseCase(unittest.TestCase):
         except Exception:
             pass
 
-    def __get_shadow_text(self, selector):
-        element = self.__get_shadow_element(selector)
-        return element.text
+    def __get_shadow_text(self, selector, timeout):
+        element = self.__get_shadow_element(
+            selector, timeout=timeout, must_be_visible=True
+        )
+        element_text = element.text
+        if self.browser == "safari":
+            element_text = element.get_attribute("innerText")
+        return element_text
 
-    def __wait_for_shadow_text_visible(self, text, selector):
+    def __get_shadow_attribute(self, selector, attribute, timeout):
+        element = self.__get_shadow_element(selector, timeout=timeout)
+        return element.get_attribute(attribute)
+
+    def __wait_for_shadow_text_visible(self, text, selector, timeout):
         start_ms = time.time() * 1000.0
         stop_ms = start_ms + (settings.SMALL_TIMEOUT * 1000.0)
         for x in range(int(settings.SMALL_TIMEOUT * 10)):
             try:
-                actual_text = self.__get_shadow_text(selector).strip()
+                actual_text = self.__get_shadow_text(
+                    selector, timeout=1
+                ).strip()
                 text = text.strip()
                 if text not in actual_text:
                     msg = (
@@ -5955,7 +6142,7 @@ class BaseCase(unittest.TestCase):
                 if now_ms >= stop_ms:
                     break
                 time.sleep(0.1)
-        actual_text = self.__get_shadow_text(selector).strip()
+        actual_text = self.__get_shadow_text(selector, timeout=1).strip()
         text = text.strip()
         if text not in actual_text:
             msg = "Expected text {%s} in element {%s} was not visible!" % (
@@ -5965,12 +6152,14 @@ class BaseCase(unittest.TestCase):
             page_actions.timeout_exception("ElementNotVisibleException", msg)
         return True
 
-    def __wait_for_exact_shadow_text_visible(self, text, selector):
+    def __wait_for_exact_shadow_text_visible(self, text, selector, timeout):
         start_ms = time.time() * 1000.0
         stop_ms = start_ms + (settings.SMALL_TIMEOUT * 1000.0)
         for x in range(int(settings.SMALL_TIMEOUT * 10)):
             try:
-                actual_text = self.__get_shadow_text(selector).strip()
+                actual_text = self.__get_shadow_text(
+                    selector, timeout=1
+                ).strip()
                 text = text.strip()
                 if text != actual_text:
                     msg = (
@@ -5986,7 +6175,7 @@ class BaseCase(unittest.TestCase):
                 if now_ms >= stop_ms:
                     break
                 time.sleep(0.1)
-        actual_text = self.__get_shadow_text(selector).strip()
+        actual_text = self.__get_shadow_text(selector, timeout=1).strip()
         text = text.strip()
         if text != actual_text:
             msg = (
@@ -5996,8 +6185,8 @@ class BaseCase(unittest.TestCase):
             page_actions.timeout_exception("ElementNotVisibleException", msg)
         return True
 
-    def __assert_shadow_text_visible(self, text, selector):
-        self.__wait_for_shadow_text_visible(text, selector)
+    def __assert_shadow_text_visible(self, text, selector, timeout):
+        self.__wait_for_shadow_text_visible(text, selector, timeout)
         if self.demo_mode:
             a_t = "ASSERT TEXT"
             i_n = "in"
@@ -6022,8 +6211,8 @@ class BaseCase(unittest.TestCase):
             except Exception:
                 pass
 
-    def __assert_exact_shadow_text_visible(self, text, selector):
-        self.__wait_for_exact_shadow_text_visible(text, selector)
+    def __assert_exact_shadow_text_visible(self, text, selector, timeout):
+        self.__wait_for_exact_shadow_text_visible(text, selector, timeout)
         if self.demo_mode:
             a_t = "ASSERT EXACT TEXT"
             i_n = "in"
@@ -6062,15 +6251,49 @@ class BaseCase(unittest.TestCase):
         except Exception:
             return False
 
-    def __wait_for_shadow_element_present(self, selector):
-        element = self.__get_shadow_element(selector)
+    def __is_shadow_element_enabled(self, selector):
+        try:
+            element = self.__get_shadow_element(selector, timeout=0.1)
+            return element.is_enabled()
+        except Exception:
+            return False
+
+    def __is_shadow_text_visible(self, text, selector):
+        try:
+            element = self.__get_shadow_element(selector, timeout=0.1)
+            if self.browser == "safari":
+                return (
+                    element.is_displayed()
+                    and text in element.get_attribute("innerText")
+                )
+            return element.is_displayed() and text in element.text
+        except Exception:
+            return False
+
+    def __is_shadow_attribute_present(self, selector, attribute, value=None):
+        try:
+            element = self.__get_shadow_element(selector, timeout=0.1)
+            found_value = element.get_attribute(attribute)
+            if found_value is None:
+                return False
+            if value is not None:
+                if found_value == value:
+                    return True
+                else:
+                    return False
+            else:
+                return True
+        except Exception:
+            return False
+
+    def __wait_for_shadow_element_present(self, selector, timeout):
+        element = self.__get_shadow_element(selector, timeout=timeout)
         return element
 
-    def __wait_for_shadow_element_visible(self, selector):
-        element = self.__get_shadow_element(selector)
-        if not element.is_displayed():
-            msg = "Shadow DOM Element {%s} was not visible!" % selector
-            page_actions.timeout_exception("NoSuchElementException", msg)
+    def __wait_for_shadow_element_visible(self, selector, timeout):
+        element = self.__get_shadow_element(
+            selector, timeout=timeout, must_be_visible=True
+        )
         return element
 
     def __wait_for_shadow_attribute_present(
@@ -6372,7 +6595,9 @@ class BaseCase(unittest.TestCase):
             timeout = self.__get_new_timeout(timeout)
         selector, by = self.__recalculate_selector(selector, by)
         if self.__is_shadow_selector(selector):
-            return self.__wait_for_shadow_element_visible(selector)
+            return self.__wait_for_shadow_element_visible(
+                selector, timeout
+            )
         return page_actions.wait_for_element_visible(
             self.driver, selector, by, timeout
         )
@@ -8375,13 +8600,13 @@ class BaseCase(unittest.TestCase):
         new_buttons = []
         for button in buttons:
             if (
-                (type(button) is list or type(button) is tuple) and (
-                 len(button) == 1)
+                (type(button) is list or type(button) is tuple)
+                and (len(button) == 1)
             ):
                 new_buttons.append(button[0])
             elif (
-                (type(button) is list or type(button) is tuple) and (
-                 len(button) > 1)
+                (type(button) is list or type(button) is tuple)
+                and (len(button) > 1)
             ):
                 new_buttons.append((button[0], str(button[1]).lower()))
             else:
@@ -8445,13 +8670,13 @@ class BaseCase(unittest.TestCase):
             raise Exception('Expecting a string for arg: "message"!')
         if button:
             if (
-                (type(button) is list or type(button) is tuple) and (
-                 len(button) == 1)
+                (type(button) is list or type(button) is tuple)
+                and (len(button) == 1)
             ):
                 button = (str(button[0]), "")
             elif (
-                (type(button) is list or type(button) is tuple) and (
-                 len(button) > 1)
+                (type(button) is list or type(button) is tuple)
+                and (len(button) > 1)
             ):
                 valid_colors = [
                     "blue",
@@ -8537,13 +8762,13 @@ class BaseCase(unittest.TestCase):
         new_buttons = []
         for button in buttons:
             if (
-                (type(button) is list or type(button) is tuple) and (
-                 len(button) == 1)
+                (type(button) is list or type(button) is tuple)
+                and (len(button) == 1)
             ):
                 new_buttons.append(button[0])
             elif (
-                (type(button) is list or type(button) is tuple) and (
-                 len(button) > 1)
+                (type(button) is list or type(button) is tuple)
+                and (len(button) > 1)
             ):
                 new_buttons.append((button[0], str(button[1]).lower()))
             else:
@@ -8814,7 +9039,9 @@ class BaseCase(unittest.TestCase):
             timeout = self.__get_new_timeout(timeout)
         selector, by = self.__recalculate_selector(selector, by)
         if self.__is_shadow_selector(selector):
-            return self.__wait_for_shadow_element_present(selector)
+            return self.__wait_for_shadow_element_present(
+                selector, timeout
+            )
         return page_actions.wait_for_element_present(
             self.driver, selector, by, timeout
         )
@@ -8829,7 +9056,9 @@ class BaseCase(unittest.TestCase):
             timeout = self.__get_new_timeout(timeout)
         selector, by = self.__recalculate_selector(selector, by)
         if self.__is_shadow_selector(selector):
-            return self.__wait_for_shadow_element_visible(selector)
+            return self.__wait_for_shadow_element_visible(
+                selector, timeout
+            )
         return page_actions.wait_for_element_visible(
             self.driver, selector, by, timeout
         )
@@ -9061,9 +9290,11 @@ class BaseCase(unittest.TestCase):
             timeout = self.__get_new_timeout(timeout)
         selector, by = self.__recalculate_selector(selector, by)
         if self.__is_shadow_selector(selector):
-            return self.__wait_for_shadow_text_visible(text, selector)
+            return self.__wait_for_shadow_text_visible(
+                text, selector, timeout
+            )
         return page_actions.wait_for_text_visible(
-            self.driver, text, selector, by, timeout
+            self.driver, text, selector, by, timeout, self.browser
         )
 
     def wait_for_exact_text_visible(
@@ -9076,9 +9307,11 @@ class BaseCase(unittest.TestCase):
             timeout = self.__get_new_timeout(timeout)
         selector, by = self.__recalculate_selector(selector, by)
         if self.__is_shadow_selector(selector):
-            return self.__wait_for_exact_shadow_text_visible(text, selector)
+            return self.__wait_for_exact_shadow_text_visible(
+                text, selector, timeout
+            )
         return page_actions.wait_for_exact_text_visible(
-            self.driver, text, selector, by, timeout
+            self.driver, text, selector, by, timeout, self.browser
         )
 
     def wait_for_text(
@@ -9132,7 +9365,7 @@ class BaseCase(unittest.TestCase):
             timeout = self.__get_new_timeout(timeout)
         selector, by = self.__recalculate_selector(selector, by)
         if self.__is_shadow_selector(selector):
-            self.__assert_shadow_text_visible(text, selector)
+            self.__assert_shadow_text_visible(text, selector, timeout)
             return True
         self.wait_for_text_visible(text, selector, by=by, timeout=timeout)
         if self.demo_mode:
@@ -9178,7 +9411,7 @@ class BaseCase(unittest.TestCase):
             timeout = self.__get_new_timeout(timeout)
         selector, by = self.__recalculate_selector(selector, by)
         if self.__is_shadow_selector(selector):
-            self.__assert_exact_shadow_text_visible(text, selector)
+            self.__assert_exact_shadow_text_visible(text, selector, timeout)
             return True
         self.wait_for_exact_text_visible(
             text, selector, by=by, timeout=timeout
@@ -10326,7 +10559,12 @@ class BaseCase(unittest.TestCase):
         try:
             version = self.driver.__dict__["caps"]["browserVersion"]
         except Exception:
-            version = self.driver.__dict__["caps"]["version"]
+            try:
+                version = self.driver.__dict__["caps"]["version"]
+            except Exception:
+                version = str(
+                    self.driver.__dict__["capabilities"]["version"]
+                )
             self.driver.__dict__["caps"]["browserVersion"] = version
         major_browser_version = version.split(".")[0]
         return major_browser_version
@@ -10460,10 +10698,10 @@ class BaseCase(unittest.TestCase):
     def __recalculate_selector(self, selector, by, xp_ok=True):
         """Use autodetection to return the correct selector with "by" updated.
         If "xp_ok" is False, don't call convert_css_to_xpath(), which is
-        used to make the ":contains()" selector valid outside JS calls."""
+        used to make the ":contains()" selector valid outside of JS calls."""
         _type = type(selector)  # First make sure the selector is a string
         not_string = False
-        if sys.version_info[0] < 3:
+        if not python3:
             if _type is not str and _type is not unicode:  # noqa: F821
                 not_string = True
         else:
@@ -10699,6 +10937,7 @@ class BaseCase(unittest.TestCase):
             if hasattr(self, "_using_sb_fixture"):
                 self.test_id = sb_config._test_id
             self.browser = sb_config.browser
+            self.account = sb_config.account
             self.data = sb_config.data
             self.var1 = sb_config.var1
             self.var2 = sb_config.var2
@@ -10776,6 +11015,7 @@ class BaseCase(unittest.TestCase):
             self.user_data_dir = sb_config.user_data_dir
             self.extension_zip = sb_config.extension_zip
             self.extension_dir = sb_config.extension_dir
+            self.external_pdf = sb_config.external_pdf
             self.maximize_option = sb_config.maximize_option
             self.save_screenshot_after_test = sb_config.save_screenshot
             self.visual_baseline = sb_config.visual_baseline
@@ -11036,6 +11276,7 @@ class BaseCase(unittest.TestCase):
                 user_data_dir=self.user_data_dir,
                 extension_zip=self.extension_zip,
                 extension_dir=self.extension_dir,
+                external_pdf=self.external_pdf,
                 is_mobile=self.mobile_emulator,
                 d_width=self.__device_width,
                 d_height=self.__device_height,
@@ -11122,7 +11363,7 @@ class BaseCase(unittest.TestCase):
     def __get_exception_info(self):
         exc_message = None
         if (
-            sys.version_info[0] >= 3
+            python3
             and hasattr(self, "_outcome")
             and (hasattr(self._outcome, "errors") and self._outcome.errors)
         ):
@@ -11233,11 +11474,11 @@ class BaseCase(unittest.TestCase):
         has_exception = False
         if hasattr(sys, "last_traceback") and sys.last_traceback is not None:
             has_exception = True
-        elif sys.version_info[0] >= 3 and hasattr(self, "_outcome"):
+        elif python3 and hasattr(self, "_outcome"):
             if hasattr(self._outcome, "errors") and self._outcome.errors:
                 has_exception = True
         else:
-            if sys.version_info[0] >= 3:
+            if python3:
                 has_exception = sys.exc_info()[1] is not None
             else:
                 if not hasattr(self, "_using_sb_fixture_class") and (
@@ -11246,7 +11487,10 @@ class BaseCase(unittest.TestCase):
                     has_exception = sys.exc_info()[1] is not None
                 else:
                     has_exception = len(str(sys.exc_info()[1]).strip()) > 0
-        if hasattr(self, "_using_sb_fixture") and self.__will_be_skipped:
+        if (
+            self.__will_be_skipped
+            and (hasattr(self, "_using_sb_fixture") or not python3)
+        ):
             has_exception = False
         return has_exception
 

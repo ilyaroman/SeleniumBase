@@ -31,6 +31,7 @@ from selenium.common.exceptions import NoSuchElementException
 from selenium.common.exceptions import NoSuchFrameException
 from selenium.common.exceptions import NoSuchWindowException
 from selenium.common.exceptions import StaleElementReferenceException
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
 from seleniumbase.config import settings
@@ -124,13 +125,12 @@ def is_attribute_present(
         element = driver.find_element(by=by, value=selector)
         found_value = element.get_attribute(attribute)
         if found_value is None:
-            raise Exception()
-
+            return False
         if value is not None:
             if found_value == value:
                 return True
             else:
-                raise Exception()
+                return False
         else:
             return True
     except Exception:
@@ -385,7 +385,12 @@ def wait_for_element_visible(
 
 
 def wait_for_text_visible(
-    driver, text, selector, by=By.CSS_SELECTOR, timeout=settings.LARGE_TIMEOUT
+    driver,
+    text,
+    selector,
+    by=By.CSS_SELECTOR,
+    timeout=settings.LARGE_TIMEOUT,
+    browser=None
 ):
     """
     Searches for the specified element by the given selector. Returns the
@@ -413,11 +418,21 @@ def wait_for_text_visible(
         try:
             element = driver.find_element(by=by, value=selector)
             is_present = True
-            if element.is_displayed() and text in element.text:
-                return element
+            if browser == "safari":
+                if (
+                    element.is_displayed()
+                    and text in element.get_attribute("innerText")
+                ):
+                    return element
+                else:
+                    element = None
+                    raise Exception()
             else:
-                element = None
-                raise Exception()
+                if element.is_displayed() and text in element.text:
+                    return element
+                else:
+                    element = None
+                    raise Exception()
         except Exception:
             now_ms = time.time() * 1000.0
             if now_ms >= stop_ms:
@@ -444,7 +459,12 @@ def wait_for_text_visible(
 
 
 def wait_for_exact_text_visible(
-    driver, text, selector, by=By.CSS_SELECTOR, timeout=settings.LARGE_TIMEOUT
+    driver,
+    text,
+    selector,
+    by=By.CSS_SELECTOR,
+    timeout=settings.LARGE_TIMEOUT,
+    browser=None
 ):
     """
     Searches for the specified element by the given selector. Returns the
@@ -472,11 +492,25 @@ def wait_for_exact_text_visible(
         try:
             element = driver.find_element(by=by, value=selector)
             is_present = True
-            if element.is_displayed() and text.strip() == element.text.strip():
-                return element
+            if browser == "safari":
+                if (
+                    element.is_displayed()
+                    and text.strip() == element.get_attribute(
+                        "innerText").strip()
+                ):
+                    return element
+                else:
+                    element = None
+                    raise Exception()
             else:
-                element = None
-                raise Exception()
+                if (
+                    element.is_displayed()
+                    and text.strip() == element.text.strip()
+                ):
+                    return element
+                else:
+                    element = None
+                    raise Exception()
         except Exception:
             now_ms = time.time() * 1000.0
             if now_ms >= stop_ms:
@@ -851,13 +885,17 @@ def _get_last_page(driver):
     return last_page
 
 
-def save_test_failure_data(driver, name, browser_type, folder=None):
+def save_test_failure_data(driver, name, browser_type=None, folder=None):
     """
-    Saves failure data to the current directory (or to a subfolder if provided)
+    Saves failure data to the current directory, or to a subfolder if provided.
+    If {name} does not end in ".txt", it will get added to it.
+    If {browser_type} is provided, the logs will include that.
     If the folder provided doesn't exist, it will get created.
     """
     import traceback
 
+    if not name.endswith(".txt"):
+        name = name + ".txt"
     if folder:
         abs_path = os.path.abspath(".")
         file_path = abs_path + "/%s" % folder
@@ -870,7 +908,8 @@ def save_test_failure_data(driver, name, browser_type, folder=None):
     last_page = _get_last_page(driver)
     data_to_save = []
     data_to_save.append("Last_Page: %s" % last_page)
-    data_to_save.append("Browser: %s " % browser_type)
+    if browser_type:
+        data_to_save.append("Browser: %s " % browser_type)
     data_to_save.append(
         "Traceback: "
         + "".join(
@@ -954,7 +993,7 @@ def switch_to_frame(driver, frame, timeout=settings.SMALL_TIMEOUT):
         try:
             driver.switch_to.frame(frame)
             return True
-        except NoSuchFrameException:
+        except (NoSuchFrameException, TimeoutException):
             if type(frame) is str:
                 by = None
                 if page_utils.is_xpath_selector(frame):

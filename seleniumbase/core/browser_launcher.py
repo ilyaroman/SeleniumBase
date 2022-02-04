@@ -274,6 +274,7 @@ def _set_chrome_options(
     user_data_dir,
     extension_zip,
     extension_dir,
+    external_pdf,
     servername,
     mobile_emulator,
     device_width,
@@ -281,6 +282,8 @@ def _set_chrome_options(
     device_pixel_ratio,
 ):
     chrome_options = webdriver.ChromeOptions()
+    if browser_name == constants.Browser.OPERA:
+        chrome_options = webdriver.opera.options.Options()
     prefs = {
         "download.default_directory": downloads_path,
         "local_discovery.notifications_enabled": False,
@@ -303,6 +306,8 @@ def _set_chrome_options(
         prefs["intl.accept_languages"] = locale_code
     if block_images:
         prefs["profile.managed_default_content_settings.images"] = 2
+    if external_pdf:
+        prefs["plugins.always_open_pdf_externally"] = True
     chrome_options.add_experimental_option("prefs", prefs)
     chrome_options.add_experimental_option("w3c", True)
     if enable_sync:
@@ -729,6 +734,7 @@ def get_driver(
     user_data_dir=None,
     extension_zip=None,
     extension_dir=None,
+    external_pdf=None,
     test_id=None,
     mobile_emulator=False,
     device_width=None,
@@ -804,6 +810,7 @@ def get_driver(
             user_data_dir,
             extension_zip,
             extension_dir,
+            external_pdf,
             test_id,
             mobile_emulator,
             device_width,
@@ -842,6 +849,7 @@ def get_driver(
             user_data_dir,
             extension_zip,
             extension_dir,
+            external_pdf,
             mobile_emulator,
             device_width,
             device_height,
@@ -884,6 +892,7 @@ def get_remote_driver(
     user_data_dir,
     extension_zip,
     extension_dir,
+    external_pdf,
     test_id,
     mobile_emulator,
     device_width,
@@ -972,6 +981,7 @@ def get_remote_driver(
             user_data_dir,
             extension_zip,
             extension_dir,
+            external_pdf,
             servername,
             mobile_emulator,
             device_width,
@@ -987,6 +997,8 @@ def get_remote_driver(
         selenoid = False
         selenoid_options = None
         screen_resolution = None
+        browser_version = None
+        platform_name = None
         for key in desired_caps.keys():
             capabilities[key] = desired_caps[key]
             if key == "selenoid:options":
@@ -994,6 +1006,10 @@ def get_remote_driver(
                 selenoid_options = desired_caps[key]
             elif key == "screenResolution":
                 screen_resolution = desired_caps[key]
+            elif key == "version" or key == "browserVersion":
+                browser_version = desired_caps[key]
+            elif key == "platform" or key == "platformName":
+                platform_name = desired_caps[key]
         if selenium4:
             chrome_options.set_capability("cloud:options", capabilities)
             if selenoid:
@@ -1002,6 +1018,12 @@ def get_remote_driver(
             if screen_resolution:
                 scres = screen_resolution
                 chrome_options.set_capability("screenResolution", scres)
+            if browser_version:
+                br_vers = browser_version
+                chrome_options.set_capability("browserVersion", br_vers)
+            if platform_name:
+                plat_name = platform_name
+                chrome_options.set_capability("platformName", plat_name)
             return webdriver.Remote(
                 command_executor=address,
                 options=chrome_options,
@@ -1039,6 +1061,8 @@ def get_remote_driver(
         selenoid = False
         selenoid_options = None
         screen_resolution = None
+        browser_version = None
+        platform_name = None
         for key in desired_caps.keys():
             capabilities[key] = desired_caps[key]
             if key == "selenoid:options":
@@ -1046,6 +1070,10 @@ def get_remote_driver(
                 selenoid_options = desired_caps[key]
             elif key == "screenResolution":
                 screen_resolution = desired_caps[key]
+            elif key == "version" or key == "browserVersion":
+                browser_version = desired_caps[key]
+            elif key == "platform" or key == "platformName":
+                platform_name = desired_caps[key]
         if selenium4:
             firefox_options.set_capability("cloud:options", capabilities)
             if selenoid:
@@ -1054,6 +1082,12 @@ def get_remote_driver(
             if screen_resolution:
                 scres = screen_resolution
                 firefox_options.set_capability("screenResolution", scres)
+            if browser_version:
+                br_vers = browser_version
+                firefox_options.set_capability("browserVersion", br_vers)
+            if platform_name:
+                plat_name = platform_name
+                firefox_options.set_capability("platformName", plat_name)
             return webdriver.Remote(
                 command_executor=address,
                 options=firefox_options,
@@ -1124,19 +1158,86 @@ def get_remote_driver(
                 keep_alive=True,
             )
     elif browser_name == constants.Browser.OPERA:
-        capabilities = webdriver.DesiredCapabilities.OPERA
+        opera_options = _set_chrome_options(
+            browser_name,
+            downloads_path,
+            headless,
+            locale_code,
+            proxy_string,
+            proxy_auth,
+            proxy_user,
+            proxy_pass,
+            proxy_bypass_list,
+            user_agent,
+            recorder_ext,
+            disable_csp,
+            enable_ws,
+            enable_sync,
+            use_auto_ext,
+            no_sandbox,
+            disable_gpu,
+            incognito,
+            guest_mode,
+            devtools,
+            remote_debug,
+            swiftshader,
+            ad_block_on,
+            block_images,
+            chromium_arg,
+            user_data_dir,
+            extension_zip,
+            extension_dir,
+            external_pdf,
+            servername,
+            mobile_emulator,
+            device_width,
+            device_height,
+            device_pixel_ratio,
+        )
+        capabilities = None
         if selenium4:
-            remote_options = ArgOptions()
-            remote_options.set_capability("cloud:options", desired_caps)
+            capabilities = webdriver.DesiredCapabilities.OPERA
+        else:
+            opera_options = webdriver.opera.options.Options()
+            capabilities = opera_options.to_capabilities()
+        # Set custom desired capabilities
+        selenoid = False
+        selenoid_options = None
+        screen_resolution = None
+        browser_version = None
+        platform_name = None
+        for key in desired_caps.keys():
+            capabilities[key] = desired_caps[key]
+            if key == "selenoid:options":
+                selenoid = True
+                selenoid_options = desired_caps[key]
+            elif key == "screenResolution":
+                screen_resolution = desired_caps[key]
+            elif key == "version" or key == "browserVersion":
+                browser_version = desired_caps[key]
+            elif key == "platform" or key == "platformName":
+                platform_name = desired_caps[key]
+        if selenium4:
+            opera_options.set_capability("cloud:options", capabilities)
+            if selenoid:
+                snops = selenoid_options
+                opera_options.set_capability("selenoid:options", snops)
+            if screen_resolution:
+                scres = screen_resolution
+                opera_options.set_capability("screenResolution", scres)
+            if browser_version:
+                br_vers = browser_version
+                opera_options.set_capability("browserVersion", br_vers)
+            if platform_name:
+                plat_name = platform_name
+                opera_options.set_capability("platformName", plat_name)
             return webdriver.Remote(
                 command_executor=address,
-                options=remote_options,
+                options=opera_options,
                 keep_alive=True,
             )
         else:
             warnings.simplefilter("ignore", category=DeprecationWarning)
-            for key in desired_caps.keys():
-                capabilities[key] = desired_caps[key]
             return webdriver.Remote(
                 command_executor=address,
                 desired_capabilities=capabilities,
@@ -1221,12 +1322,18 @@ def get_remote_driver(
         selenoid = False
         selenoid_options = None
         screen_resolution = None
+        browser_version = None
+        platform_name = None
         for key in desired_caps.keys():
             if key == "selenoid:options":
                 selenoid = True
                 selenoid_options = desired_caps[key]
             elif key == "screenResolution":
                 screen_resolution = desired_caps[key]
+            elif key == "version" or key == "browserVersion":
+                browser_version = desired_caps[key]
+            elif key == "platform" or key == "platformName":
+                platform_name = desired_caps[key]
         if selenium4:
             remote_options = ArgOptions()
             remote_options.set_capability("cloud:options", desired_caps)
@@ -1236,6 +1343,12 @@ def get_remote_driver(
             if screen_resolution:
                 scres = screen_resolution
                 remote_options.set_capability("screenResolution", scres)
+            if browser_version:
+                br_vers = browser_version
+                firefox_options.set_capability("browserVersion", br_vers)
+            if platform_name:
+                plat_name = platform_name
+                firefox_options.set_capability("platformName", plat_name)
             return webdriver.Remote(
                 command_executor=address,
                 options=remote_options,
@@ -1281,6 +1394,7 @@ def get_local_driver(
     user_data_dir,
     extension_zip,
     extension_dir,
+    external_pdf,
     mobile_emulator,
     device_width,
     device_height,
@@ -1407,6 +1521,7 @@ def get_local_driver(
                 sb_install.main(override="iedriver")
                 sys.argv = sys_args  # Put back the original sys args
         if not headless:
+            warnings.simplefilter("ignore", category=DeprecationWarning)
             return webdriver.Ie(capabilities=ie_capabilities)
         else:
             warnings.simplefilter("ignore", category=DeprecationWarning)
@@ -1473,6 +1588,8 @@ def get_local_driver(
             prefs["intl.accept_languages"] = locale_code
         if block_images:
             prefs["profile.managed_default_content_settings.images"] = 2
+        if external_pdf:
+            prefs["plugins.always_open_pdf_externally"] = True
         edge_options.add_experimental_option("prefs", prefs)
         edge_options.add_experimental_option("w3c", True)
         edge_options.add_argument(
@@ -1721,6 +1838,7 @@ def get_local_driver(
                 user_data_dir,
                 extension_zip,
                 extension_dir,
+                external_pdf,
                 servername,
                 mobile_emulator,
                 device_width,
@@ -1774,6 +1892,7 @@ def get_local_driver(
                 user_data_dir,
                 extension_zip,
                 extension_dir,
+                external_pdf,
                 servername,
                 mobile_emulator,
                 device_width,
@@ -1871,6 +1990,7 @@ def get_local_driver(
                         user_data_dir,
                         extension_zip,
                         extension_dir,
+                        external_pdf,
                         servername,
                         mobile_emulator,
                         device_width,

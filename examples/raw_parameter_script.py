@@ -29,7 +29,7 @@ except (ImportError, ValueError):
     pure_python = True
 
 if pure_python:
-    sb = MyTestClass("test_basics")
+    sb = MyTestClass("test_swag_labs")
     sb.browser = "chrome"
     sb.headless = False
     sb.headed = False
@@ -40,6 +40,10 @@ if pure_python:
     sb.servername = "localhost"
     sb.port = 4444
     sb.data = None
+    sb.var1 = None
+    sb.var2 = None
+    sb.var3 = None
+    sb.account = None
     sb.environment = "test"
     sb.user_agent = None
     sb.incognito = False
@@ -82,6 +86,7 @@ if pure_python:
     sb._dash_initialized = False
     sb.message_duration = 2
     sb.block_images = False
+    sb.external_pdf = False
     sb.remote_debug = False
     sb.settings_file = None
     sb.user_data_dir = None
@@ -100,7 +105,7 @@ if pure_python:
 
     sb.setUp()
     try:
-        sb.test_basics()
+        sb.test_swag_labs()
     finally:
         sb.tearDown()
         del sb
