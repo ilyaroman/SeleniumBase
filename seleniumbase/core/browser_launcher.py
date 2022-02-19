@@ -994,6 +994,8 @@ def get_remote_driver(
         else:
             capabilities = chrome_options.to_capabilities()
         # Set custom desired capabilities
+        moon = False
+        moon_options = None
         selenoid = False
         selenoid_options = None
         screen_resolution = None
@@ -1001,7 +1003,10 @@ def get_remote_driver(
         platform_name = None
         for key in desired_caps.keys():
             capabilities[key] = desired_caps[key]
-            if key == "selenoid:options":
+            if key == "moon:options":
+                moon = True
+                moon_options = desired_caps[key]
+            elif key == "selenoid:options":
                 selenoid = True
                 selenoid_options = desired_caps[key]
             elif key == "screenResolution":
@@ -1012,6 +1017,9 @@ def get_remote_driver(
                 platform_name = desired_caps[key]
         if selenium4:
             chrome_options.set_capability("cloud:options", capabilities)
+            if moon:
+                moonopt = moon_options
+                chrome_options.set_capability("moon:options", moonopt)
             if selenoid:
                 snops = selenoid_options
                 chrome_options.set_capability("selenoid:options", snops)
