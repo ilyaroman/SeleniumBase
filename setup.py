@@ -49,7 +49,7 @@ if sys.argv[-1] == "publish":
         print("\n*** Installing build: *** (Required for PyPI uploads)\n")
         os.system("python -m pip install --upgrade 'build>=0.7.0'")
         print("\n*** Installing twine: *** (Required for PyPI uploads)\n")
-        os.system("python -m pip install --upgrade 'twine>=3.7.1'")
+        os.system("python -m pip install --upgrade 'twine>=3.8.0'")
         print("\n*** Installing tqdm: *** (Required for PyPI uploads)\n")
         os.system("python -m pip install --upgrade 'tqdm>=4.62.3'")
         print("\n*** Rebuilding distribution packages: ***\n")
@@ -125,17 +125,17 @@ setup(
     install_requires=[
         'pip>=20.3.4;python_version<"3.6"',
         'pip>=21.3.1;python_version>="3.6" and python_version<"3.7"',
-        'pip>=22.0.2;python_version>="3.7"',
+        'pip>=22.0.3;python_version>="3.7"',
         'packaging>=20.9;python_version<"3.6"',
         'packaging>=21.3;python_version>="3.6"',
         'setuptools>=44.1.1;python_version<"3.5"',
         'setuptools>=50.3.2;python_version>="3.5" and python_version<"3.6"',
         'setuptools>=59.6.0;python_version>="3.6" and python_version<"3.7"',
-        'setuptools>=60.6.0;python_version>="3.7"',
+        'setuptools>=60.9.1;python_version>="3.7"',
         'setuptools-scm>=5.0.2;python_version<"3.6"',
         'setuptools-scm>=6.4.2;python_version>="3.6"',
-        'tomli>=1.2.2;python_version>="3.6" and python_version<"3.7"',
-        'tomli>=2.0.0;python_version>="3.7"',
+        'tomli>=1.2.3;python_version>="3.6" and python_version<"3.7"',
+        'tomli>=2.0.1;python_version>="3.7"',
         "wheel>=0.37.1",
         "attrs>=21.4.0",
         'PyYAML>=6.0;python_version>="3.6"',
@@ -153,9 +153,9 @@ setup(
         'idna==3.3;python_version>="3.6"',  # Must stay in sync with "requests"
         'chardet==3.0.4;python_version<"3.5"',  # Stay in sync with "requests"
         'chardet==4.0.0;python_version>="3.5"',  # Stay in sync with "requests"
-        'charset-normalizer==2.0.11;python_version>="3.5"',  # Sync "requests"
+        'charset-normalizer==2.0.12;python_version>="3.5"',  # Sync "requests"
         "urllib3==1.26.8",  # Must stay in sync with "requests"
-        'requests==2.27.0;python_version<"3.5"',
+        'requests==2.27.1;python_version<"3.5"',
         'requests==2.25.1;python_version>="3.5" and python_version<"3.6"',
         'requests==2.27.1;python_version>="3.6"',
         "nose==1.3.7",
@@ -174,7 +174,7 @@ setup(
         "sortedcontainers==2.4.0",
         'filelock==3.2.1;python_version<"3.6"',
         'filelock==3.4.1;python_version>="3.6" and python_version<"3.7"',
-        'filelock==3.4.2;python_version>="3.7"',
+        'filelock==3.5.0;python_version>="3.7"',
         'fasteners==0.16;python_version<"3.5"',
         'fasteners==0.16.3;python_version>="3.5" and python_version<"3.6"',
         'fasteners==0.17.3;python_version>="3.6"',
@@ -185,7 +185,7 @@ setup(
         'py==1.11.0;python_version>="3.5"',
         'pytest==4.6.11;python_version<"3.5"',
         'pytest==6.1.2;python_version>="3.5" and python_version<"3.6"',
-        'pytest==6.2.5;python_version>="3.6"',
+        'pytest==7.0.1;python_version>="3.6"',
         'pytest-forked==1.3.0;python_version<"3.6"',
         'pytest-forked==1.4.0;python_version>="3.6"',
         'pytest-html==1.22.1;python_version<"3.6"',
@@ -208,13 +208,12 @@ setup(
         'beautifulsoup4==4.10.0;python_version>="3.5"',
         'cryptography==2.9.2;python_version<"3.5"',
         'cryptography==3.2.1;python_version>="3.5" and python_version<"3.6"',
-        'cryptography==3.4.8;python_version>="3.6" and python_version<"3.7"',
-        'cryptography==36.0.1;python_version>="3.7"',
+        'cryptography==36.0.1;python_version>="3.6"',
         'pygments==2.5.2;python_version<"3.5"',
         'pygments==2.11.2;python_version>="3.5"',
         'prompt-toolkit==1.0.18;python_version<"3.5"',
-        'prompt-toolkit==2.0.10;python_version>="3.5" and python_version<"3.6.2"',  # noqa: E501
-        'prompt-toolkit==3.0.26;python_version>="3.6.2"',
+        'prompt-toolkit==2.0.10;python_version>="3.5" and python_version<"3.6"',  # noqa: E501
+        'prompt-toolkit==3.0.28;python_version>="3.6"',
         'decorator==4.4.2;python_version<"3.5"',
         'decorator==5.1.1;python_version>="3.5"',
         'ipython==5.10.0;python_version<"3.5"',
@@ -225,11 +224,11 @@ setup(
         "colorama==0.4.4",
         'platformdirs==2.0.2;python_version<"3.6"',
         'platformdirs==2.4.0;python_version>="3.6" and python_version<"3.7"',
-        'platformdirs==2.4.1;python_version>="3.7"',
-        'pathlib2==2.3.5;python_version<"3.5"',  # Sync with "virtualenv"
-        'importlib-metadata==2.0.0;python_version<"3.5"',
-        'importlib-metadata==2.1.1;python_version>="3.5" and python_version<"3.6"',  # noqa: E501
-        "virtualenv>=20.13.0",  # Sync with importlib-metadata and pathlib2
+        'platformdirs==2.5.0;python_version>="3.7"',
+        'pathlib2==2.3.6;python_version<"3.5"',  # Sync with "virtualenv"
+        'importlib-metadata==2.1.3;python_version<"3.6"',
+        'importlib-metadata==4.2.0;python_version>="3.6" and python_version<"3.8"',  # noqa: E501
+        "virtualenv>=20.13.1",  # Sync with importlib-metadata and pathlib2
         "pycparser==2.21",
         'pymysql==0.10.1;python_version<"3.6"',
         'pymysql==1.0.2;python_version>="3.6"',
@@ -241,10 +240,10 @@ setup(
         'Pillow==6.2.2;python_version<"3.5"',
         'Pillow==7.2.0;python_version>="3.5" and python_version<"3.6"',
         'Pillow==8.4.0;python_version>="3.6" and python_version<"3.7"',
-        'Pillow==9.0.0;python_version>="3.7"',
+        'Pillow==9.0.1;python_version>="3.7"',
         'typing-extensions==3.10.0.2;python_version<"3.6"',  # <3.8 for "rich"
         'typing-extensions==4.0.0;python_version>="3.6" and python_version<"3.8"',  # noqa: E501
-        'rich==11.1.0;python_version>="3.6.2" and python_version<"4.0"',
+        'rich==11.2.0;python_version>="3.6" and python_version<"4.0"',
         'tornado==5.1.1;python_version<"3.5"',
         'tornado==6.1;python_version>="3.5"',
         'pdfminer.six==20191110;python_version<"3.5"',

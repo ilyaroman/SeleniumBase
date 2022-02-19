@@ -10,11 +10,8 @@ class WordleTests(BaseCase):
     word_list = []
 
     def initalize_word_list(self):
-        js_file = "https://www.powerlanguage.co.uk/wordle/main.e65ce0a5.js"
-        req_text = requests.get(js_file).text
-        start = req_text.find("var La=") + len("var La=")
-        end = req_text.find("],", start) + 1
-        word_string = req_text[start:end]
+        txt_file = "https://seleniumbase.io/cdn/txt/wordle_words.txt"
+        word_string = requests.get(txt_file).text
         self.word_list = ast.literal_eval(word_string)
 
     def modify_word_list(self, word, letter_status):
@@ -55,14 +52,14 @@ class WordleTests(BaseCase):
             print(message)
             self.skip(message)
         version = [int(i) for i in __version__.split(".") if i.isdigit()]
-        if version < [2, 4, 3]:
-            message = "This test requires SeleniumBase 2.4.3 or newer!"
+        if version < [2, 4, 4]:
+            message = "This test requires SeleniumBase 2.4.4 or newer!"
             print(message)
             self.skip(message)
 
     def test_wordle(self):
         self.skip_if_incorrect_env()
-        self.open("https://www.powerlanguage.co.uk/wordle/")
+        self.open("https://www.nytimes.com/games/wordle/index.html")
         self.click("game-app::shadow game-modal::shadow game-icon")
         self.initalize_word_list()
         keyboard_base = "game-app::shadow game-keyboard::shadow "
@@ -77,7 +74,7 @@ class WordleTests(BaseCase):
                 letters.append(letter)
                 button = 'button[data-key="%s"]' % letter
                 self.click(keyboard_base + button)
-            button = 'button[data-key="↵"]'
+            button = 'button.one-and-a-half'
             self.click(keyboard_base + button)
             row = 'game-app::shadow game-row[letters="%s"]::shadow ' % word
             tile = row + "game-tile:nth-of-type(%s)"

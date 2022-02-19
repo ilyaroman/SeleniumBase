@@ -12,11 +12,16 @@ Output:
 
 import colorama
 import os
+import subprocess
 import sys
 from seleniumbase.fixtures import page_utils
 
-if sys.version_info[0] < 3:
-    raise Exception("This script is for Python 3 only!")
+if sys.version_info <= (3, 7):
+    current_version = ".".join(str(ver) for ver in sys.version_info[:3])
+    raise Exception(
+        "\n* Recorder Desktop requires Python 3.7 or newer!"
+        "\n*** You are currently using Python %s" % current_version
+    )
 import tkinter as tk  # noqa: E402
 from tkinter import messagebox  # noqa: E402
 
@@ -26,6 +31,7 @@ def set_colors(use_colors):
     c1 = ""
     c2 = ""
     c3 = ""
+    c4 = ""
     cr = ""
     if use_colors:
         colorama.init(autoreset=True)
@@ -87,10 +93,10 @@ def do_recording(file_name, url, overwrite_enabled, use_chrome, window):
                     return
             else:
                 os.remove(file_name)
-        command = "python -m sbase mkrec %s --url=%s" % (file_name, url)
+        command = "sbase mkrec %s --url=%s --gui" % (file_name, url)
         if not use_chrome:
             command += " --edge"
-        os.system(command)
+        subprocess.Popen(command, shell=True)
         send_window_to_front(window)
 
 
@@ -108,12 +114,14 @@ def do_playback(file_name, use_chrome, window, demo_mode=False):
         )
         return
     command = "pytest %s -q -s" % file_name
+    if "linux" in sys.platform:
+        command += " --gui"
     if not use_chrome:
         command += " --edge"
     if demo_mode:
         command += " --demo"
     print(command)
-    os.system(command)
+    subprocess.Popen(command, shell=True)
     send_window_to_front(window)
 
 
